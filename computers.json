@@ -1,0 +1,31 @@
+{
+  "computers": [
+    {
+      "uuid": "60AEC5E8-0DBD-11E4-A6DE-6059EC4E0A00",
+      "historic": [
+        {
+          "date": 13455241,
+          "procedure": ""
+        }
+      ]
+    },
+    {
+      "id": "",
+      "historic": [
+        {
+          "date": 134551241,
+          "procedure": ""
+        }
+      ]
+    },
+    {
+      "id": "",
+      "historic": [
+        {
+          "date": 134551241,
+          "procedure": ""
+        }
+      ]
+    }
+  ]
+}
