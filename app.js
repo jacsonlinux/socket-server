@@ -1,7 +1,10 @@
-const net = require('net');
-const server = new net.Server();
-const admin = require('firebase-admin');
+const net = require('node:net');
+const dgram = require('node:dgram');
 
+const serverTCP = new net.Server();
+const serverUDP = new dgram.createSocket('udp4');
+
+const admin = require('firebase-admin');
 admin.initializeApp({
     credential: admin.credential.cert('./serviceAccountKey.json'),
     databaseURL: "https://ifba-portoseguro.firebaseio.com"
@@ -12,9 +15,6 @@ const db = admin.firestore();
 const uuidFile = require('./uuid');
 const ping = require('ping');
 const address = require('address');
-
-const dgram = require('dgram');
-const socketUDP = dgram.createSocket('udp4');
 
 let data = [];
 let laboratory = null;
@@ -111,9 +111,106 @@ const offComputer = async (uuid, i) => {
         });
 };
 
-const connect = (ip) => {
-    server.listen(11111, `${ip}`);
+const enableServerTCP = (ip) => {
+    console.log(`${(new Date().toString())}`);
+    serverTCP.listen(11111, `${ip}`);
+    serverTCP.on('close', () => {
+        console.log('SERVER CLOSED!');
+    });
+    serverTCP.on('connection', socket => {
+        let jsonCheck = '';
+        socket.setKeepAlive(true, 5000);
+        socket.on('data', chunk => {
+            jsonCheck += chunk.toString();
+            if (IsJsonString(jsonCheck)) {
+                if (data.type === 'static') {
+                    data.system['uuid'] = data.system['uuid'].toUpperCase();
+                    laboratory = findUUID(data.system['uuid']);
+                    if (laboratory === null) {
+                        fs.appendFileSync(
+                            'NOTFOUND.txt',
+                            `\n${data.system['model']} - ${data.system['serial']} - ${data.system['uuid']}`
+                        );
+                        console.log(`${
+                            (new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))
+                        } - UUID: ${
+                            data.system['uuid']
+                        } - HOST: ${ socket.localAddress } - Rejected`);
+                        socket.write(JSON.stringify('true'));
+                        socket.destroy();
+                    } else {
+                        console.log(`${
+                            (new Date().toLocaleString(
+                                    'pt-BR', { timeZone: 'America/Bahia' }
+                                )
+                            )
+                        } - UUID: ${
+                            data.system['uuid']
+                        } - HOST: ${ socket.remoteAddress } - Connected`);
+                        clients.push({ip: socket.remoteAddress, laboratory: laboratory, uuid: data.system['uuid']});
+                        setComputer(data, laboratory);
+                    }
+                }
+                if (data.type === 'dynamic') {
+                    data.uuid = data.uuid.toUpperCase();
+                    fs.writeFile(
+                        `dynamic_data/${data.uuid}.json`,
+                        `${JSON.stringify(data, null, '\t')}`,
+                        err => {
+                            if (err) throw err;
+                            console.log('Saved!'+ data.uuid);
+                        });
+                }
+            }
+        });
+        socket.on('error', (err) => {
+            console.log('SOCKET ERROR :( '+ err);
+        });
+        socket.on('end', () => {
+            console.log('SOCKET END!');
+        });
+        socket.on('close', () => {
+            console.log('SOCKET CLOSE!');
+            clients.forEach((host, i) => {
+                ping.sys.probe(`${host.ip}`, (isAlive) => {
+                    if (!isAlive) {
+                        console.log(`${ (new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))} - UUID: ${host.uuid} - HOST: ${ host.ip } - Disconnected`);
+                        console.log('remove: '+i);
+                        clients.splice(i,1);
+                        offComputer(host.uuid, i).then().catch();
+                    } else {console.log('ISALIVE: '+isAlive+' - '+i+' - '+host.ip)}
+                }, { timeout: 10 })
+            });
+        });
+    });
+    serverTCP.on('error', (err) => {
+        console.log('ERROR SERVER :( '+ err)
+    });
+    serverTCP.on('listening', () => {
+        console.log(`\nServer TCP listening\nAddress: ${serverTCP.address().address} - Port: ${serverTCP.address().port}`);
+        enableServerUDP();
+    });
 };
+
+const enableServerUDP = () => {
+
+    serverUDP.on('error', (err) => {
+        console.error(`server error:\n${err.stack}`);
+        serverUDP.close();
+    });
+
+    serverUDP.on('listening', () => {
+        console.log(`\nServer UDP listening\nAddress: ${serverUDP.address().address} - Port: ${serverUDP.address().port} `);
+    });
+
+    serverUDP.on('message',(msg, client) => {
+        console.log(client);
+        serverUDP.send( ``, 0, 0, client.port, client.address);
+    });
+
+    serverUDP.bind(22222);
+
+}
 
 const IsJsonString = str => {
     try {
@@ -125,95 +222,7 @@ const IsJsonString = str => {
     return true;
 };
 
-socketUDP.on('message', (
-    message, remote) => {
-    console.log(remote);
-    const response = "Hellow there!";
-    socketUDP.send(response, 0, response.length, remote.port, remote.address);
-});
-
-server.on('close', () => {
-    console.log('SERVER CLOSED!');
-});
-
-server.on('connection', socket => {
-    let jsonCheck = '';
-    socket.setKeepAlive(true, 5000);
-    socket.on('data', chunk => {
-        jsonCheck += chunk.toString();
-        if (IsJsonString(jsonCheck)) {
-            if (data.type === 'static') {
-                data.system['uuid'] = data.system['uuid'].toUpperCase();
-                laboratory = findUUID(data.system['uuid']);
-                if (laboratory === null) {
-                    fs.appendFileSync(
-                        'NOTFOUND.txt',
-                        `\n${data.system['model']} - ${data.system['serial']} - ${data.system['uuid']}`
-                    );
-                    console.log(`${
-                        (new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))
-                    } - UUID: ${
-                        data.system['uuid']
-                    } - HOST: ${ socket.localAddress } - Rejected`);
-                    socket.write(JSON.stringify('true'));
-                    socket.destroy();
-                } else {
-                    console.log(`${
-                        (new Date().toLocaleString(
-                                'pt-BR', { timeZone: 'America/Bahia' }
-                            )
-                        )
-                    } - UUID: ${
-                        data.system['uuid']
-                    } - HOST: ${ socket.remoteAddress } - Connected`);
-                    clients.push({ip: socket.remoteAddress, laboratory: laboratory, uuid: data.system['uuid']});
-                    setComputer(data, laboratory);
-                }
-            }
-            if (data.type === 'dynamic') {
-                data.uuid = data.uuid.toUpperCase();
-                fs.writeFile(
-                    `dynamic_data/${data.uuid}.json`,
-                    `${JSON.stringify(data, null, '\t')}`,
-                    err => {
-                        if (err) throw err;
-                        console.log('Saved!'+ data.uuid);
-                    });
-            }
-        }
-    });
-    socket.on('error', (err) => {
-        console.log('SOCKET ERROR :( '+ err);
-    });
-    socket.on('end', () => {
-        console.log('SOCKET END!');
-    });
-    socket.on('close', () => {
-        console.log('SOCKET CLOSE!');
-        clients.forEach((host, i) => {
-            ping.sys.probe(`${host.ip}`, (isAlive) => {
-                if (!isAlive) {
-                    console.log(`${ (new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))} - UUID: ${host.uuid} - HOST: ${ host.ip } - Disconnected`);
-                    console.log('remove: '+i);
-                    clients.splice(i,1);
-                    offComputer(host.uuid, i).then().catch();
-                } else {console.log('ISALIVE: '+isAlive+' - '+i+' - '+host.ip)}
-            }, { timeout: 10 })
-        });
-    });
-});
-
-server.on('error', (err) => {
-    console.log('ERROR SERVER :( '+ err)
-});
-
-server.on('listening', () => {
-    console.log(`${(new Date().toString())}\nServer tcp listening\nUDP Address: ${socketUDP.address().address} - Port: ${socketUDP.address().port}\nTCP Address: ${server.address().address} - Port: ${server.address().port}`);
-});
-
 deactivateAllComputers.then((res) => {
     console.log(res);
-    connect(address.ip());
+    enableServerTCP(address.ip());
 });
-
-socketUDP.bind(22222);
