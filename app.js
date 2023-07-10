@@ -45,6 +45,16 @@ const deactivateAllComputers = new Promise((resolve) => {
         });
 });
 
+const IsJsonString = str => {
+    try {
+        JSON.parse(str);
+    } catch (e) {
+        return false;
+    }
+    data = JSON.parse(str)
+    return true;
+};
+
 const findUUID = uuid => {
     laboratory = null;
     uuidFile.laboratory.maintenance.map(res => {
@@ -67,14 +77,14 @@ const findUUID = uuid => {
             laboratory = 'g7c61BZS0pkqpto95ZjD';
         }
     });
-    uuidFile.laboratory.computing04.map(res => {
-        if (res === uuid){
-            laboratory = '7clCLJ2n6eTVQw7FQESc';
-        }
-    });
     uuidFile.laboratory.computing03.map(res => {
         if (res === uuid){
             laboratory = 'm3EFlFm5iuyv6FzFzWOK';
+        }
+    });
+    uuidFile.laboratory.computing04.map(res => {
+        if (res === uuid){
+            laboratory = '7clCLJ2n6eTVQw7FQESc';
         }
     });
     return laboratory;
@@ -114,8 +124,9 @@ const offComputer = async (uuid, i) => {
 const enableServerTCP = (ip) => {
     console.log(`${(new Date().toString())}`);
     serverTCP.listen(11111, `${ip}`);
-    serverTCP.on('close', () => {
-        console.log('SERVER CLOSED!');
+    serverTCP.on('listening', () => {
+        console.log(`\nServer TCP listening\nAddress: ${serverTCP.address().address} - Port: ${serverTCP.address().port}`);
+        enableServerUDP();
     });
     serverTCP.on('connection', socket => {
         let jsonCheck = '';
@@ -183,44 +194,29 @@ const enableServerTCP = (ip) => {
             });
         });
     });
+    serverTCP.on('close', () => {
+        console.log('SERVER CLOSED!');
+    });
     serverTCP.on('error', (err) => {
         console.log('ERROR SERVER :( '+ err)
     });
-    serverTCP.on('listening', () => {
-        console.log(`\nServer TCP listening\nAddress: ${serverTCP.address().address} - Port: ${serverTCP.address().port}`);
-        enableServerUDP();
-    });
+
 };
 
 const enableServerUDP = () => {
-
-    serverUDP.on('error', (err) => {
-        console.error(`server error:\n${err.stack}`);
-        serverUDP.close();
-    });
-
     serverUDP.on('listening', () => {
         console.log(`\nServer UDP listening\nAddress: ${serverUDP.address().address} - Port: ${serverUDP.address().port} `);
     });
-
     serverUDP.on('message',(msg, client) => {
         console.log(client);
         serverUDP.send( ``, 0, 0, client.port, client.address);
     });
-
+    serverUDP.on('error', (err) => {
+        console.error(`server error:\n${err.stack}`);
+        serverUDP.close();
+    });
     serverUDP.bind(22222);
-
 }
-
-const IsJsonString = str => {
-    try {
-        JSON.parse(str);
-    } catch (e) {
-        return false;
-    }
-    data = JSON.parse(str)
-    return true;
-};
 
 deactivateAllComputers.then((res) => {
     console.log(res);
