@@ -44,7 +44,6 @@ const deactivateAllComputers = new Promise((resolve) => {
             console.log("Error getting document:", error);
         });
 });
-
 const IsJsonString = str => {
     try {
         JSON.parse(str);
@@ -54,7 +53,6 @@ const IsJsonString = str => {
     data = JSON.parse(str)
     return true;
 };
-
 const findUUID = uuid => {
     laboratory = null;
     uuidFile.laboratory.maintenance.map(res => {
@@ -89,7 +87,6 @@ const findUUID = uuid => {
     });
     return laboratory;
 };
-
 const setComputer = (data, laboratory) => {
     data['active'] = true;
     db
@@ -105,7 +102,6 @@ const setComputer = (data, laboratory) => {
             console.error("Error writing document: ", error);
         });
 };
-
 const offComputer = async (uuid, i) => {
     const querySnapshot = await db
         .collectionGroup('computers')
@@ -120,7 +116,6 @@ const offComputer = async (uuid, i) => {
                 .catch(error => console.error("Error writing document: ", error))
         });
 };
-
 const enableServerTCP = (ip) => {
     console.log(`${(new Date().toString())}`);
     serverTCP.listen(11111, `${ip}`);
@@ -202,7 +197,6 @@ const enableServerTCP = (ip) => {
     });
 
 };
-
 const enableServerUDP = () => {
     serverUDP.on('listening', () => {
         console.log(`\nServer UDP listening\nAddress: ${serverUDP.address().address} - Port: ${serverUDP.address().port} `);
@@ -217,7 +211,6 @@ const enableServerUDP = () => {
     });
     serverUDP.bind(22222);
 }
-
 deactivateAllComputers.then((res) => {
     console.log(res);
     enableServerTCP(address.ip());
