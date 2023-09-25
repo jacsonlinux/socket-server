@@ -12,12 +12,14 @@ admin.initializeApp({
 
 const fs = require('fs');
 const db = admin.firestore();
-const uuidFile = require('./uuid');
+const uuidFile = require('./uuid.json');
 const ping = require('ping');
 const address = require('address');
 
 let data = [];
+
 let laboratory = null;
+
 let clients = [];
 
 const deactivateAllComputers = new Promise((resolve) => {
@@ -53,36 +55,44 @@ const IsJsonString = str => {
     data = JSON.parse(str)
     return true;
 };
+const checkTerm = (fileName, uuid) => {
+    try {
+        const content = fs.readFileSync(fileName, 'utf-8');
+        return content.includes(uuid);
+    } catch (err) {
+        console.error(`Erro ao ler o arquivo: ${err.message}`);
+    }
+};
 const findUUID = uuid => {
     laboratory = null;
-    uuidFile.laboratory.maintenance.map(res => {
-        if (res === uuid){
-            laboratory = 'n8xca2iUgarDgt9nB9Pj';
-        }
-    });
-    uuidFile.laboratory.network.map(res => {
-        if (res === uuid){
-            laboratory = 'P1gszuFncdbxhh1L6ND7';
-        }
-    });
-    uuidFile.laboratory.computing01.map(res => {
+    uuidFile.laboratory.a05.map(res => {
         if (res === uuid){
             laboratory = '4rm0ZtPl0h5Eu9NrjqEx';
         }
     });
-    uuidFile.laboratory.computing02.map(res => {
+    uuidFile.laboratory.a08.map(res => {
         if (res === uuid){
             laboratory = 'g7c61BZS0pkqpto95ZjD';
         }
     });
-    uuidFile.laboratory.computing03.map(res => {
+    uuidFile.laboratory.c07.map(res => {
         if (res === uuid){
             laboratory = 'm3EFlFm5iuyv6FzFzWOK';
         }
     });
-    uuidFile.laboratory.computing04.map(res => {
+    uuidFile.laboratory.c08.map(res => {
         if (res === uuid){
             laboratory = '7clCLJ2n6eTVQw7FQESc';
+        }
+    });
+    uuidFile.laboratory.c09.map(res => {
+        if (res === uuid){
+            laboratory = 'P1gszuFncdbxhh1L6ND7';
+        }
+    });
+    uuidFile.laboratory.c10.map(res => {
+        if (res === uuid){
+            laboratory = 'n8xca2iUgarDgt9nB9Pj';
         }
     });
     return laboratory;
@@ -145,6 +155,15 @@ const enableServerTCP = (ip) => {
                         socket.write(JSON.stringify('true'));
                         socket.destroy();
                     } else {
+                        let macs = '';
+                        let interfaces = data['net'];
+                        interfaces.forEach(res => { macs += ' - ' + res.mac; });
+                        if (!checkTerm('UUIDMAC.txt', data.system['uuid'])) {
+                            fs.appendFileSync(
+                                'UUIDMAC.txt',
+                                `\n${data.system['uuid']} - ${macs}`
+                            );
+                        }
                         console.log(`${
                             (new Date().toLocaleString(
                                     'pt-BR', { timeZone: 'America/Bahia' }
@@ -177,16 +196,18 @@ const enableServerTCP = (ip) => {
         });
         socket.on('close', () => {
             console.log('SOCKET CLOSE!');
-            clients.forEach((host, i) => {
-                ping.sys.probe(`${host.ip}`, (isAlive) => {
-                    if (!isAlive) {
-                        console.log(`${ (new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))} - UUID: ${host.uuid} - HOST: ${ host.ip } - Disconnected`);
-                        console.log('remove: '+i);
-                        clients.splice(i,1);
-                        offComputer(host.uuid, i).then().catch();
-                    } else {console.log('ISALIVE: '+isAlive+' - '+i+' - '+host.ip)}
-                }, { timeout: 10 })
-            });
+            setTimeout(() => {
+                clients.forEach((host, i) => {
+                    ping.sys.probe(`${host.ip}`, (isAlive) => {
+                        if (!isAlive) {
+                            console.log(`${ (new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))} - UUID: ${host.uuid} - HOST: ${ host.ip } - Disconnected`);
+                            console.log('remove: '+i);
+                            clients.splice(i,1);
+                            offComputer(host.uuid, i).then().catch();
+                        } else {console.log('ISALIVE: '+isAlive+' - '+i+' - '+host.ip)}
+                    }, { timeout: 10 })
+                });
+            }, 5000);
         });
     });
     serverTCP.on('close', () => {
@@ -210,7 +231,7 @@ const enableServerUDP = () => {
         serverUDP.close();
     });
     serverUDP.bind(22222);
-}
+};
 deactivateAllComputers.then((res) => {
     console.log(res);
     enableServerTCP(address.ip());
