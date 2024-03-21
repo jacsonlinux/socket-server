@@ -139,6 +139,22 @@ const enableServerTCP = (ip) => {
         socket.on('data', chunk => {
             jsonCheck += chunk.toString();
             if (IsJsonString(jsonCheck)) {
+                if (data.type === 'log') {
+                    if (checkTerm('computer_mapping.txt', data.uuid)) {
+                        const content = fs.readFileSync('computer_mapping.txt', 'utf-8');
+                        const lines = content.split('\n');
+                        lines.forEach(line => {
+                            if (line.includes(data.uuid)) {
+                                console.log(line);
+                                fs.appendFileSync('update_log.txt', `\n${(new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))} - ${line}`);
+                            }
+                        });
+                    } else {
+                        fs.appendFileSync(
+                            'NOTFOUND.txt',
+                            `\n${(new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))} - ${data.uuid} - NOT MAPPING`);
+                    }
+                }
                 if (data.type === 'static') {
                     data.system['uuid'] = data.system['uuid'].toUpperCase();
                     laboratory = findUUID(data.system['uuid']);
@@ -158,12 +174,13 @@ const enableServerTCP = (ip) => {
                         let macs = '';
                         let interfaces = data['net'];
                         interfaces.forEach(res => { macs += ' - ' + res.mac; });
-                        if (!checkTerm('UUIDMAC.txt', data.system['uuid'])) {
+                        if (!checkTerm('computer_mapping.txt', data.system['uuid'])) {
                             fs.appendFileSync(
-                                'UUIDMAC.txt',
+                                'computer_mapping.txt',
                                 `\n${data.system['uuid']} - ${macs}`
                             );
                         }
+
                         console.log(`${
                             (new Date().toLocaleString(
                                     'pt-BR', { timeZone: 'America/Bahia' }
@@ -171,7 +188,8 @@ const enableServerTCP = (ip) => {
                             )
                         } - UUID: ${
                             data.system['uuid']
-                        } - HOST: ${ socket.remoteAddress } - Connected`);
+                        } - HOST: ${ socket.remoteAddress } - Connected` );
+
                         clients.push({ip: socket.remoteAddress, laboratory: laboratory, uuid: data.system['uuid']});
                         setComputer(data, laboratory);
                     }
@@ -216,15 +234,16 @@ const enableServerTCP = (ip) => {
     serverTCP.on('error', (err) => {
         console.log('ERROR SERVER :( '+ err)
     });
-
 };
 const enableServerUDP = () => {
     serverUDP.on('listening', () => {
         console.log(`\nServer UDP listening\nAddress: ${serverUDP.address().address} - Port: ${serverUDP.address().port} `);
     });
     serverUDP.on('message',(msg, client) => {
-        console.log(client);
-        serverUDP.send( ``, 0, 0, client.port, client.address);
+        serverUDP.send( ``, 0, 0, client.port, client.address, (err) => {
+            if (err) throw err;
+            console.log('UDP message sent '+client.address+':'+client.port);
+        });
     });
     serverUDP.on('error', (err) => {
         console.error(`server error:\n${err.stack}`);
@@ -232,7 +251,11 @@ const enableServerUDP = () => {
     });
     serverUDP.bind(22222);
 };
+const viewInfo = (data) => {
+    console.log(`\n${(new Date().toLocaleString('pt-BR', { timeZone: 'America/Bahia' }))}` + data);
+};
 deactivateAllComputers.then((res) => {
     console.log(res);
     enableServerTCP(address.ip());
 });
+
